@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/example_db
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update  # Hibernate在启动时自动更新数据库结构
+    show-sql: true  # 显示生成的SQL语句
+
+redis:
+  host: localhost  # Redis服务器主机名
+  port: 6379  # Redis服务器端口号
+
+app:
+  jwtSecret: 7182d593752d132a35147dbac6e23f6133ea63738fbaf59834495adaf03e8f2e  # JWT密钥，用于签发和验证JWT
+  jwtExpirationInMs: 3600000  # JWT Token 过期时间，单位为毫秒（这里设置为1小时）
