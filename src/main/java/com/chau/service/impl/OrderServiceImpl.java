@@ -9,8 +9,8 @@ import com.chau.repository.UserRepository;
 import com.chau.service.OrderService;
 import com.chau.util.RedisDistributedLock;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
@@ -20,7 +20,7 @@ import java.util.UUID;
 /**
  * @Author: wilfred
  * @CreateTime: 2024-07-10 17:38
- * @Description: 订单服务实现类
+ * @Description: 订单服务实现类 (异步处理)
  */
 @Service
 @Slf4j
@@ -29,23 +29,23 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final RedisDistributedLock redisDistributedLock;
-    private final StringRedisTemplate stringRedisTemplate;
     private final UserRepository userRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     private static final String LOCK_KEY_PREFIX = "lock:user:";
     private static final String LOCK_KEY_SUFFIX = "product:";
 
     @Autowired
-    public OrderServiceImpl(OrderRepository orderRepository, ProductRepository productRepository, RedisDistributedLock redisDistributedLock, StringRedisTemplate stringRedisTemplate, UserRepository userRepository) {
+    public OrderServiceImpl(OrderRepository orderRepository, ProductRepository productRepository, RedisDistributedLock redisDistributedLock, UserRepository userRepository, RabbitTemplate rabbitTemplate) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.redisDistributedLock = redisDistributedLock;
-        this.stringRedisTemplate = stringRedisTemplate;
+        this.rabbitTemplate = rabbitTemplate;
         this.userRepository = userRepository;
     }
 
     /**
-     * 创建订单
+     * 创建订单 (异步处理)
      *
      * @param userId 用户ID
      * @param productId 产品ID
@@ -80,7 +80,10 @@ public class OrderServiceImpl implements OrderService {
             order.setUserId(userId);
             orderRepository.save(order);
 
-            stringRedisTemplate.convertAndSend("orderChannel", "创建订单成功，订单ID：" + order.getId() + ", 下单商品：" + product.getName() + ", 下单用户：" + user.getUsername());
+            // 异步发送订单创建成功的消息到 RabbitMQ
+            log.info("Sending order created message: {}", order);
+            rabbitTemplate.convertAndSend("orderExchange", "order.created", order);
+
         } finally {
             redisDistributedLock.releaseLock(lockKey, requestId);
         }
@@ -108,7 +111,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 更新订单状态
+     * 更新订单状态 (异步处理)
      *
      * @param orderId 订单ID
      * @param status 订单状态
@@ -118,5 +121,9 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(orderId).orElseThrow(() -> new RuntimeException("订单不存在"));
         order.setStatus(status);
         orderRepository.save(order);
+
+        // 异步发送订单状态更新的消息到 RabbitMQ
+        log.info("Sending order status updated message: {}", order);
+        rabbitTemplate.convertAndSend("orderExchange", "order.status.updated", order);
     }
 }

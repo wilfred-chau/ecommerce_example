@@ -1,5 +1,7 @@
 package com.chau.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -13,6 +15,8 @@ import java.util.concurrent.TimeUnit;
  */
 @Component  // 标记为Spring组件，使其可以被Spring容器管理
 public class RedisDistributedLock {
+
+    private final Logger logger = LoggerFactory.getLogger(RedisDistributedLock.class);
 
     private final StringRedisTemplate stringRedisTemplate;  // 用于操作Redis的模板
 
@@ -32,6 +36,11 @@ public class RedisDistributedLock {
     public boolean tryGetLock(String lockKey, String requestId, long expireTime) {
         // 使用Redis的setIfAbsent方法尝试设置锁，设置成功则获取锁成功
         Boolean result = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, requestId, expireTime, TimeUnit.MILLISECONDS);
+        if (result != null && result) {
+            logger.info("成功获取锁：{}，请求标识：{}", lockKey, requestId);
+        } else {
+            logger.warn("获取锁失败：{}", lockKey);
+        }
         return result != null && result;  // 返回获取锁的结果
     }
 
@@ -48,7 +57,10 @@ public class RedisDistributedLock {
         // 如果请求标识与当前持有者标识一致，则删除锁并释放
         if (requestId.equals(value)) {
             stringRedisTemplate.delete(lockKey);
+            logger.info("成功释放锁：{}，请求标识：{}", lockKey, requestId);
             return true;  // 返回释放锁的结果
+        } else {
+            logger.warn("释放锁失败，请求标识不匹配：{}，当前持有者：{}", lockKey, value);
         }
         return false;  // 请求标识不一致，返回释放锁失败
     }

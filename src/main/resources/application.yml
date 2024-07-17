@@ -8,6 +8,11 @@ spring:
     hibernate:
       ddl-auto: update  # Hibernate在启动时自动更新数据库结构
     show-sql: true  # 显示生成的SQL语句
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
 
 redis:
   host: localhost  # Redis服务器主机名
